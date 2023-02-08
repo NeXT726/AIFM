@@ -9,8 +9,15 @@
 
 namespace far_memory {
 
+// GenericList即为一个list的数据
+// 使用  LocalList<LocalNode> local_list_; 保存该list使用的所有chunk的信息
+// 以chunk为单位为list申请空间保存一个个的元素，每个chunk的信息由一个LocalNode保存
+// 但LocalNode只保存chunk的元数据信息，不包含数据部分
+// 数据部分需要单独申请，保存在LocalNode的GenericUniquePtr指向的内存地址中
 class GenericList {
 private:
+  // 一个Chunk
+  // 其中meta为首地址，data保存list_data_
   struct ChunkListData {
     uint64_t meta;
     uint8_t data[0];
@@ -30,7 +37,9 @@ private:
 #pragma pack(pop)
 
   struct ChunkListState {
+    // 指向chunk中list_data的首地址
     uint64_t list_data_ptr_addr : 48;
+    // 记录chunk中保存的一个元素组成的GenericLocalListData的大小
     uint16_t kChunkListNodeSize : 16;
   };
 
@@ -55,7 +64,10 @@ private:
 #pragma pack(push, 1)
   struct LocalNode {
     GenericUniquePtr ptr;
+    // 这个应该叫Object，保存的是一个Chunk中的所有元素的链表信息
+    // 而不是不同Chunk连接的链表信息
     ChunkList chunk_list;
+    // 当前Chunk中保存的元素个数
     uint8_t cnt = 0;
     bool swapping_in = false;
     uint8_t paddings[6];
@@ -98,6 +110,7 @@ private:
   constexpr static uint16_t kMaxNumNodesPerChunk = 64;
   constexpr static uint16_t kInvalidCnt = kMaxNumNodesPerChunk + 1;
   constexpr static uint16_t kDefaultChunkSize = 4096;
+  // 当两个chunk的node和占一个chunk的比例低于这个值，则合并两个chunk
   constexpr static double kMergeThreshRatio = 0.75;
 
   const uint16_t kItemSize_;
@@ -107,6 +120,8 @@ private:
   const uint64_t kInitMeta_;
   const uint16_t kMergeThresh_;
   const uint32_t kPrefetchNumNodes_;
+
+  // ※ 保存本地list的一个个chunk的信息
   LocalList<LocalNode> local_list_;
   uint64_t size_ = 0;
   bool enable_merge_;

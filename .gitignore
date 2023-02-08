@@ -9,3 +9,6 @@ iokerneld
 main
 *.bak
 build
+
+# vscode
+.vscode/*

@@ -13,10 +13,15 @@ LocalList<T>::deref_node_ptr(NodePtr ptr, NodePool *node_pool) {
 template <typename T>
 FORCE_INLINE LocalList<T>::NodePtr
 LocalList<T>::allocate_node(NodePool *node_pool) {
+  // 如果node_pool为空，则申请新的空Node填入node_pool
   if (unlikely(node_pool->empty())) {
+    // 禁止中断
     preempt_disable();
+    // node_pool和auto_cleaner_是连续申请的，所以可以直接通过地址取到
     auto auto_node_cleaner = reinterpret_cast<AutoNodeCleaner *>(
         reinterpret_cast<uint64_t>(node_pool) + sizeof(NodePool));
+    // Node由GenericLocalListNode<uint8_t *>和对象T本身组成
+    // 因为GenericLocalListNode使用的是柔性数组，所以其实Node就是填充了数据的GenericLocalListNode
     constexpr auto kNodeSize =
         sizeof(GenericLocalListNode<NodePtr>) + sizeof(T);
     auto mem =
@@ -81,9 +86,15 @@ FORCE_INLINE GenericLocalList<NodePtr, DerefFn, AllocateFn,
 template <typename NodePtr, typename DerefFn, typename AllocateFn,
           typename FreeFn>
 template <bool Reverse>
+// 返回值为GenericLocalListNode<NodePtr> &
 FORCE_INLINE GenericLocalListNode<NodePtr> &
+// 函数名为下面两行
 GenericLocalList<NodePtr, DerefFn, AllocateFn,
                  FreeFn>::IteratorImpl<Reverse>::deref(NodePtr ptr) const {
+  // q&a:为什么这里直接定义了一个新的kDerefNodePtrFn就可以用啊?
+  // 因为这里传进来的 DerefFn 是lambda函数，所以传进来的类型底层是一个struct，
+  // struct内部会有成员操作符 () ，指代的就是lambda函数本身，所以可以直接使用。
+  // 这是c++20才支持的特性。
   const DerefFn kDerefNodePtrFn;
   if constexpr (kFnHasState) {
     return kDerefNodePtrFn(ptr, state_);
@@ -125,8 +136,11 @@ template <bool Reverse>
 FORCE_INLINE uint8_t *
 GenericLocalList<NodePtr, DerefFn, AllocateFn,
                  FreeFn>::IteratorImpl<Reverse>::insert() {
+  // 当前节点
   auto *node = &deref(ptr_);
+  // 申请一个新的节点
   auto new_node_ptr = allocate();
+  // 解引用
   auto *new_node = &deref(new_node_ptr);
 
   if constexpr (Reverse) {
@@ -494,7 +508,11 @@ template <typename T> FORCE_INLINE void LocalList<T>::pop_front() {
 
 template <typename T> FORCE_INLINE void LocalList<T>::push_back(const T &data) {
   auto rbegin_iter = generic_local_list_.rbegin();
+  // 在rbegin也就是迭代器的最后一个元素
+  // 前或后 （由reverse决定）
+  // 插入一个新的节点，并返回节点的data部分的首地址
   auto *data_ptr = generic_local_list_.insert(rbegin_iter);
+  // 向新节点的data部分拷贝数据，该节点才真正的创立
   memcpy(data_ptr, &data, sizeof(data));
   size_++;
 }

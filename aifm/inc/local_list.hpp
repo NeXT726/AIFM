@@ -15,6 +15,12 @@ namespace far_memory {
 
 template <typename T> class LocalList;
 
+// GenericLocalListNode是一个List类型的一个元素
+// next和prev?
+// data部分保存当前元素的数据，除了真实数据，LocalNode也是以这种格式保存的，
+// 而LocalNode中保存的并不是真实数据，而是Chunk的元数据信息
+// data使用柔性数组，当GenericLocalListNode放在LocalList中申请的时候，
+// 根据传入的变量类型T为data申请不同大小的空间，其中T有可能是用户数据，也可能是LocalNode中的元数据信息
 template <typename NodePtr> struct GenericLocalListNode {
   NodePtr next;
   NodePtr prev;
@@ -22,6 +28,9 @@ template <typename NodePtr> struct GenericLocalListNode {
 };
 
 #pragma pack(push, 1)
+// GenericLocalListData为GenericLocalListNode的头
+// 一般放置在一串GenericLocalListNode前保存该链表的一些元数据信息
+// data部分一般就是GenericLocalListNode
 template <typename NodePtr> struct GenericLocalListData {
   GenericLocalListNode<NodePtr> head;
   GenericLocalListNode<NodePtr> tail;
@@ -31,6 +40,8 @@ template <typename NodePtr> struct GenericLocalListData {
 };
 #pragma pack(pop)
 
+// GenericLocalList就是一个chunk链表的封装
+// 只是对GenericLocalListData进行了一定的封装，没有真实数据，只有指针
 template <typename NodePtr, typename DerefFn, typename AllocateFn,
           typename FreeFn>
 class GenericLocalList {
@@ -128,6 +139,9 @@ public:
                               uint8_t **data_ptr);
 };
 
+// LocalList中保存了当前节点申请的list的Node信息
+// 创建了一个Node的池，保存了真实的Node的数据信息（Node申请内存空间在这里进行）
+// 不像GenericLocalListData只有指针，不关心内存空间从哪里申请出来的
 template <typename T> class LocalList {
 private:
   using NodePtr = uint8_t *;
@@ -136,9 +150,12 @@ private:
 
   constexpr static uint32_t kReplenishNumNodes = 8192;
 
+  // 将GenericLocalListNode的首地址转化成GenericLocalListNode对象返回
   static GenericLocalListNode<NodePtr> &deref_node_ptr(NodePtr ptr,
                                                        NodePool *node_pool);
+  // 从Node Pool中取一个Node返回首地址
   static NodePtr allocate_node(NodePool *node_pool);
+  // 将该Node放回Node Pool，并调用ptr指向的T的析构函数释放空间
   static void free_node(NodePtr ptr, NodePool *node_pool);
 
   constexpr static auto kDerefNodePtrFn =
@@ -181,7 +198,10 @@ private:
   using Iterator = IteratorImpl</* Reverse */ false>;
   using ReverseIterator = IteratorImpl</* Reverse */ true>;
 
+  // 保存每个Node的vector，以stack栈的形式保存
   NodePool node_pool_;
+  // 保存每次增加Node时申请到的首地址
+  // 每个首地址代表了kReplenishNumNodes * kNodeSize的连续地址空间用于保存类型为T的多个对象
   AutoNodeCleaner auto_cleaner_;
   TGenericLocalList::ListData list_data_;
   TGenericLocalList generic_local_list_;

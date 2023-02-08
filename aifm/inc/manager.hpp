@@ -87,9 +87,12 @@ private:
     double get_free_region_ratio() const;
     uint32_t get_num_regions() const;
   };
-
+  // 管理本地的内存空间
   RegionManager cache_region_manager_;
+  // 管理远端的内存空间
+  // limitation：每个计算节点只能连接一个远端内存节点
   RegionManager far_mem_region_manager_;
+
   std::atomic<uint32_t> pending_gcs_{0};
   bool gc_master_spawned_;
   std::unique_ptr<FarMemDevice> device_ptr_;

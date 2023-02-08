@@ -661,12 +661,16 @@ retry_allocate_local:
   auto &free_local_region = cache_region_manager_.core_local_free_region(nt);
   optional_local_addr = free_local_region.allocate_object(object_size);
 
+  // likely 和 unlikely 两个宏定义
+  // 分别预测当前变量更可能为 0或1，可以帮助编译器进行预取，更好的利用cache
   if (likely(optional_local_addr)) {
     return *optional_local_addr;
   } else {
     bool success = cache_region_manager_.try_refill_core_local_free_region(
         nt, &free_local_region);
     per_core_local_region_refilled = true;
+    // 如果没有成功的从全局的region中申请到
+    // 则启动gc，等待回收空间
     if (unlikely(!success)) {
       preempt_enable();
       mutator_wait_for_gc_cache();
@@ -688,6 +692,7 @@ FarMemManager::allocate_local_object_nb(bool nt, uint16_t object_size) {
     preempt_enable();
   });
 retry_allocate_local:
+  // 本地的内存管理为 cache_region_manager_
   auto &free_local_region = cache_region_manager_.core_local_free_region(nt);
   optional_local_addr = free_local_region.allocate_object(object_size);
 
@@ -709,6 +714,7 @@ uint64_t FarMemManager::allocate_remote_object(bool nt, uint16_t object_size) {
   auto guard = helpers::finally([&]() { preempt_enable(); });
   std::optional<uint64_t> optional_remote_addr;
 retry_allocate_far_mem:
+  // 远端的内存管理为 far_mem_region_manager_
   auto &free_remote_region = far_mem_region_manager_.core_local_free_region(nt);
   optional_remote_addr = free_remote_region.allocate_object(object_size);
   if (unlikely(!optional_remote_addr)) {

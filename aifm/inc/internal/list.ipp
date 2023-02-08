@@ -19,6 +19,7 @@ FORCE_INLINE GenericList::ChunkNodePtr
 GenericList::allocate_node(ChunkListState state) {
   uint64_t *list_data_ptr = reinterpret_cast<uint64_t *>(
       static_cast<uint64_t>(state.list_data_ptr_addr));
+  // 找到目前已有的最后的ChunkListData
   auto chunk_list_data = reinterpret_cast<ChunkListData *>(
       static_cast<uint64_t>(*list_data_ptr) - sizeof(ChunkListData));
   auto *meta = &(chunk_list_data->meta);

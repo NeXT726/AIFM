@@ -46,6 +46,7 @@ FORCE_INLINE bool FarMemPtrMeta::is_null() const {
   return (to_uint64_t() & kNullMask) == kNull;
 }
 
+// q：不明白为什么是256？但好像和大小尾端有关。
 FORCE_INLINE void FarMemPtrMeta::nullify() { from_uint64_t(kNull); }
 
 FORCE_INLINE uint64_t FarMemPtrMeta::get_object_data_addr() const {
@@ -166,6 +167,7 @@ FORCE_INLINE uint8_t FarMemPtrMeta::get_ds_id() const {
   return metadata_[kDSIDPos];
 }
 
+// 对指针进行解引用
 template <bool Mut, bool Nt, bool Shared>
 FORCE_INLINE void *GenericFarMemPtr::_deref() {
 retry:
@@ -181,6 +183,7 @@ retry:
     // Slow path.
     if (very_unlikely(metadata & (FarMemPtrMeta::kPresentClear |
                                   FarMemPtrMeta::kEvacuationSet))) {
+      // 如果P位为1，表示当前对象为远端对象，需要读到本地
       if (metadata & FarMemPtrMeta::kPresentClear) {
         if (meta().is_null()) {
           // In this case, _deref() returns nullptr.
@@ -197,11 +200,15 @@ retry:
           thread_yield();
         }
       }
+      // 当前对象成功载入本地后，进入retry重试
       goto retry;
     }
     if constexpr (Mut) {
       // set P and D.
       if constexpr (!Shared) {
+        // $0 是数字 0
+        // %0 是传参第一个 meta().metadata_[FarMemPtrMeta::kPresentPos]
+        // 所以这里就是把 metadata_ 的相应字节置为 0
         __asm__("movb $0, %0"
                 : "=m"(meta().metadata_[FarMemPtrMeta::kPresentPos]));
       } else {
@@ -209,6 +216,7 @@ retry:
                 : "=m"(meta().metadata_[FarMemPtrMeta::kPresentPos]));
       }
     }
+    // q：不存在 D=1 ，但 H=0 的情况吗？
     meta().metadata_[FarMemPtrMeta::kHotPos]--;
   }
 
