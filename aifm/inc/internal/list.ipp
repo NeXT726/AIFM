@@ -238,6 +238,7 @@ GenericList::add_local_list_node(
     const LocalList<LocalNode>::IteratorImpl<Reverse> &iter) {
   local_list_.insert(iter, LocalNode());
   auto new_iter = iter;
+  // q:为什么要--？insert的时候不会改变iter的位置吧
   --new_iter;
   init_local_node(scope, &(*new_iter));
   return new_iter;
@@ -277,6 +278,7 @@ template <bool Reverse>
 FORCE_INLINE GenericList::GenericIteratorImpl<Reverse>
 GenericList::remove_local_list_node(const DerefScope &scope,
                                     const GenericIteratorImpl<Reverse> &iter) {
+  // local_iter_是local_list里面定义的迭代器，定义了运算符 -> 即为deref，所以这里可以直接取swapping_in
   while (unlikely(iter.local_iter_->swapping_in)) {
     thread_yield();
   }

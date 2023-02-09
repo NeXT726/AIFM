@@ -9,6 +9,8 @@
 namespace far_memory {
 class Server {
 private:
+  // 每一种data struct都有一个ServerDS
+  // 每个ServerDS提供该data struct对不同object id的读写函数
   ServerDSFactory *registered_server_ds_factorys_[kMaxNumDSTypes];
   static std::unique_ptr<ServerDS> server_ds_ptrs_[kMaxNumDSIDs];
 

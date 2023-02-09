@@ -13,6 +13,8 @@ private:
 public:
   ServerPtr(uint32_t param_len, uint8_t *params);
   ~ServerPtr();
+  // 将特定id的object拷贝到data_buf中
+  // object_id就是这个object在buf_中的偏移量
   void read_object(uint8_t obj_id_len, const uint8_t *obj_id,
                    uint16_t *data_len, uint8_t *data_buf);
   void write_object(uint8_t obj_id_len, const uint8_t *obj_id,

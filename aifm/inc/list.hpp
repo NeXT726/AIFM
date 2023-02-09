@@ -69,6 +69,7 @@ private:
     ChunkList chunk_list;
     // 当前Chunk中保存的元素个数
     uint8_t cnt = 0;
+    // swapping_in 为 true 时，无法对该node操作，需要该线程让出cpu
     bool swapping_in = false;
     uint8_t paddings[6];
 
@@ -109,6 +110,7 @@ private:
   constexpr static uint16_t kMinNumNodesPerChunk = 8;
   constexpr static uint16_t kMaxNumNodesPerChunk = 64;
   constexpr static uint16_t kInvalidCnt = kMaxNumNodesPerChunk + 1;
+  // Chunk的默认大小为4k
   constexpr static uint16_t kDefaultChunkSize = 4096;
   // 当两个chunk的node和占一个chunk的比例低于这个值，则合并两个chunk
   constexpr static double kMergeThreshRatio = 0.75;
@@ -123,6 +125,7 @@ private:
 
   // ※ 保存本地list的一个个chunk的信息
   LocalList<LocalNode> local_list_;
+  // 当前？的数量
   uint64_t size_ = 0;
   bool enable_merge_;
   bool customized_split_; // Customized for Queue and Stack.
@@ -141,6 +144,7 @@ private:
   LocalList<LocalNode>::IteratorImpl<Reverse>
   add_local_list_node(const DerefScope &scope,
                       const LocalList<LocalNode>::IteratorImpl<Reverse> &iter);
+  // 从链表中删除迭代器iter，并返回被删除的迭代器
   template <bool Reverse>
   GenericList::GenericIteratorImpl<Reverse>
   remove_local_list_node(const DerefScope &scope,

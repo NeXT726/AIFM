@@ -214,6 +214,8 @@ public:
 
 class FarMemManagerFactory {
 private:
+  // 默认FarMemManager的GC线程的数量
+  // 也可以直接在build中传入指定数量
   constexpr static uint32_t kDefaultNumGCThreads = 10;
 
   static FarMemManager *ptr_;

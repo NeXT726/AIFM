@@ -11,11 +11,14 @@
 
 namespace far_memory {
 
+// Capacity为0的时候申请动态数组
 template <typename T, bool Sync, uint64_t Capacity = 0> class CircularBuffer {
 private:
   using FixedArray = T[Capacity + 1];
   constexpr static bool kIsDynamic = (Capacity == 0);
 
+  // 当kIsDynamic为true时，items类型为std::unique_ptr<T[]>
+  // 否则为FixedArray
   typename std::conditional<kIsDynamic, std::unique_ptr<T[]>, FixedArray>::type
       items_;
   uint32_t head_ = 0;

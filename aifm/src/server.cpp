@@ -39,6 +39,8 @@ void Server::destruct(uint8_t ds_id) {
 void Server::read_object(uint8_t ds_id, uint8_t obj_id_len,
                          const uint8_t *obj_id, uint16_t *data_len,
                          uint8_t *data_buf) {
+  // 根据data struct的id找到相应的ServerDS
+  // 然后调用它的read读相应object id的对象，保存在data_buf中
   auto ds_ptr = server_ds_ptrs_[ds_id].get();
   if (!ds_ptr) {
     ds_ptr = server_ds_ptrs_[kVanillaPtrDSID].get();

@@ -16,7 +16,7 @@ namespace far_memory {
 template <typename T> class LocalList;
 
 // GenericLocalListNode是一个List类型的一个元素
-// next和prev?
+// next和prev指向的是下一个和上一个GenericLocalListNode的首地址！
 // data部分保存当前元素的数据，除了真实数据，LocalNode也是以这种格式保存的，
 // 而LocalNode中保存的并不是真实数据，而是Chunk的元数据信息
 // data使用柔性数组，当GenericLocalListNode放在LocalList中申请的时候，
@@ -85,6 +85,7 @@ private:
 
   template <bool Reverse> class IteratorImpl {
   private:
+    // ptr_保存的是GenericLocalListNode的指针，可以直接指针转化后使用
     NodePtr ptr_;
     StateType state_;
 
@@ -94,6 +95,8 @@ private:
 
     Node &deref(NodePtr ptr) const;
     uint8_t *insert();
+    // 从链表中删除当前元素，返回下一个或上一个元素
+    // 当前元素的data指针将被保存在*data_ptr中
     IteratorImpl<Reverse> erase(uint8_t **data_ptr);
     NodePtr allocate();
     void free(NodePtr node_ptr);
@@ -104,7 +107,9 @@ private:
     template <bool OReverse> IteratorImpl(const IteratorImpl<OReverse> &o);
     template <bool OReverse>
     IteratorImpl &operator=(const IteratorImpl<OReverse> &o);
+    // 前缀加 ++I;
     IteratorImpl &operator++();
+    // 后缀加 I++;
     IteratorImpl operator++(int);
     IteratorImpl &operator--();
     IteratorImpl operator--(int);

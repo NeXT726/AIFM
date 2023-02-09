@@ -38,6 +38,8 @@ public:
 class FakeDevice : public FarMemDevice {
 private:
   constexpr static uint32_t kPrefetchWinSize = 1 << 20;
+  // 在本地创建一个Server，模拟object的读写
+  // FakeDevice的读写函数就是简单的调用Server的读写函数
   Server server_;
 
 public:

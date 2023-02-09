@@ -178,6 +178,7 @@ bool FarMemManager::RegionManager::try_refill_core_local_free_region(
   auto guard = helpers::finally([&] { region_spin_.Unlock(); });
 
   bool success = true;
+  // 将已经装满的Region链接到used_regions中
   if (full_region) {
     if (!full_region->is_invalid()) {
       success =
@@ -190,6 +191,7 @@ bool FarMemManager::RegionManager::try_refill_core_local_free_region(
       BUG_ON(!success);
     }
   }
+  // 从free_regions_取出开头的Region填入当前core的core_local_free_regions_[core_num]
   auto &core_local_region = core_local_free_region(nt);
   if (core_local_region.is_invalid()) {
     success = free_regions_.pop_front(&core_local_region);
@@ -227,21 +229,24 @@ FarMemManager::RegionManager::RegionManager(uint64_t size, bool is_local) {
   }
   free_regions_ = std::move(CircularBuffer<Region, false>(free_regions_count));
   used_regions_ = std::move(CircularBuffer<Region, false>(free_regions_count));
-  nt_used_regions_ =
-      std::move(CircularBuffer<Region, false>(free_regions_count));
+  nt_used_regions_ = std::move(CircularBuffer<Region, false>(free_regions_count));
   if (is_local) {
+    // 申请一个大页作为cache，并赋值给local_cache_ptr
     local_cache_ptr_.reset(reinterpret_cast<uint8_t *>(
         helpers::allocate_hugepage(free_regions_count * Region::kSize)));
   }
+  // 除去给每个核申请的region，其他的加到全局的空闲region中
   free_regions_count -= 2 * helpers::kNumSocket1CPUs;
 
   uint32_t idx = 0;
   auto new_region_fn = [&](bool nt) {
     auto buf_ptr =
+    // remote memory manager里面全都是nullptr：全局free region和每个核的free region都是
         is_local ? (local_cache_ptr_.get() + idx * Region::kSize) : nullptr;
     return Region(idx++, is_local, nt, buf_ptr);
   };
 
+  // 为每个核申请自己的free_region和free_nt_region
   FOR_ALL_SOCKET0_CORES(core_id) {
     core_local_free_regions_[core_id] = new_region_fn(false);
     core_local_free_nt_regions_[core_id] = new_region_fn(true);
@@ -258,6 +263,7 @@ void FarMemManager::swap_in(bool nt, GenericFarMemPtr *ptr) {
   auto &meta = ptr->meta();
   auto obj_id = meta.get_object_id();
   rmb();
+  // Present为0的时候表示当前的对象已经在本地了
   if (unlikely(meta.is_present())) {
     return;
   }
@@ -275,14 +281,18 @@ void FarMemManager::swap_in(bool nt, GenericFarMemPtr *ptr) {
     auto ds_id = meta.get_ds_id();
     uint16_t obj_data_len;
     auto obj_data_addr = reinterpret_cast<uint8_t *>(obj.get_data_addr());
+    // void read_object(uint8_t ds_id, uint8_t obj_id_len, const uint8_t *obj_id, uint16_t *data_len, uint8_t *data_buf);
+    // 将该object换入填充刚刚申请的空间
     device_ptr_->read_object(ds_id, sizeof(obj_id),
                              reinterpret_cast<uint8_t *>(&obj_id),
                              &obj_data_len, obj_data_addr);
     wmb();
     obj.init(ds_id, obj_data_len, sizeof(obj_id),
              reinterpret_cast<uint8_t *>(&obj_id));
+    // 如果是unique_ptr，则直接将该FarMemPtr指向的指针设置present就可以
     if (!meta.is_shared()) {
       meta.set_present(obj_addr);
+    // 如果是shared_ptr，则需要遍历所有的shared_ptr设置present
     } else {
       reinterpret_cast<GenericSharedPtr *>(ptr)->traverse(
           [=](GenericFarMemPtr *ptr) { ptr->meta().set_present(obj_addr); });
@@ -647,6 +657,7 @@ void FarMemManager::gc_cache() {
   store_release(&gc_master_active, false);
 }
 
+// 在当前core的region中申请一个Object的空间，返回该空间的首地址
 uint64_t FarMemManager::allocate_local_object(bool nt, uint16_t object_size) {
   preempt_disable();
   std::optional<uint64_t> optional_local_addr;
@@ -666,10 +677,12 @@ retry_allocate_local:
   if (likely(optional_local_addr)) {
     return *optional_local_addr;
   } else {
+    // 当前core的region已经被填满了
+    // 所以需要将该region链接到used_region中，并申请一个新的free_region填充core的region
     bool success = cache_region_manager_.try_refill_core_local_free_region(
         nt, &free_local_region);
     per_core_local_region_refilled = true;
-    // 如果没有成功的从全局的region中申请到
+    // 如果没有成功的从全局的free_region中申请到
     // 则启动gc，等待回收空间
     if (unlikely(!success)) {
       preempt_enable();

@@ -7,6 +7,9 @@
 
 namespace far_memory {
 
+// Region为保存多个object的一个块
+// 大小设置为kSize
+// Region好像就是论文里面的Log
 class Region {
   // Format:
   // |ref_cnt(4B)|Nt(1B)|Resv(1B)|objects|
@@ -20,6 +23,7 @@ public:
   constexpr static uint32_t kNtPos = 4;
   constexpr static uint32_t kNtSize = 1;
   constexpr static uint64_t kShift = 20;
+  // kSize = 1MB
   constexpr static uint64_t kSize = (1 << kShift);
   constexpr static uint8_t kGCParallelism = 2;
   constexpr static int32_t kInvalidIdx = -1;
@@ -31,6 +35,8 @@ public:
 
 private:
   uint32_t first_free_byte_idx_ = kObjectPos;
+  // 当该region在本地时，赋值buf_ptr为块的首地址
+  // q：当该region不在本地时，怎么处理？
   uint8_t *buf_ptr_ = nullptr;
   int32_t region_idx_ = kInvalidIdx;
   uint8_t num_boundaries_ = 0;

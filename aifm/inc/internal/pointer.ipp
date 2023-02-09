@@ -46,7 +46,8 @@ FORCE_INLINE bool FarMemPtrMeta::is_null() const {
   return (to_uint64_t() & kNullMask) == kNull;
 }
 
-// q：不明白为什么是256？但好像和大小尾端有关。
+// q&a：不明白为什么是256？但好像和大小尾端有关。
+// a：和大小尾端没有任何关系，只是他的结构图画错了而已，具体可以看pointer.hpp最上面的注释
 FORCE_INLINE void FarMemPtrMeta::nullify() { from_uint64_t(kNull); }
 
 FORCE_INLINE uint64_t FarMemPtrMeta::get_object_data_addr() const {

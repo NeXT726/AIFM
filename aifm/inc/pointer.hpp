@@ -8,6 +8,12 @@ namespace far_memory {
 // Format:
 //  I) |XXXXXXX !H(1b)|  0   S(1b)!D(1b)00000|E(1b)|  Object Data Addr(47b)  |
 // II) |   DS_ID(8b)  |!P(1b)S(1b)| Object Size(16b) |      ObjectID(38b)    |
+// 注意注意！！！这里的指针结构和论文里面是不一样的！
+// 这里的Format左边是低地址，右边是高地址。
+// 左高右低的通常画法，应该画成：
+//  I) | Object Data Addr(47b) | E(1b) | 00000 !D(1b) S(1b)  !P(1b) | !H(1b) XXXXXXX   |
+// II) |     ObjectID(38b)     |  Object Size(16b)  | S(1b) !P(1b)  |    DS_ID(8b)     |
+// 他把地址信息放在了指针的高位。
 //
 //                  D: dirty bit.
 //                  P: present.
@@ -42,6 +48,11 @@ private:
   constexpr static uint32_t kDSIDPos = 0;
   constexpr static uint32_t kSharedBitPos = 9;
 
+  // 使用uint8的数组在64位情况下和uint64没有区别。
+  // 但这样的数组可以更简单的增大缩小，比如创建128位的数组。
+  // 大小尾端和这个数组没有关系，大小尾端是生成相应的uint64之后在底层存储考虑的事情，和现在没有任何关系
+  // 通常我们可以见到的大小尾端的使用场景是网络通信：
+  // 两个不同编码方式的机器，通过协调统一使用一种编码，在网络传输的数据包中使用相同的尾端，避免双方编码不同导致的错误。
   uint8_t metadata_[kSize];
   friend class FarMemManager;
   friend class GenericFarMemPtr;

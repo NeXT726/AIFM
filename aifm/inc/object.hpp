@@ -12,6 +12,7 @@ class Object {
   // Format:
   // |<------------------ header ------------------>|
   // |ptr_addr(6B)|data_len(2B)|ds_id(1B)|id_len(1B)|data|object_ID|
+  // 注意！这里也是左低右高的形式： 0 --> 63
   //
   //      ptr_addr: points to the corresponding far-mem pointer. During GC,
   //                the collector uses the field to jump from Region to far-mem
@@ -30,6 +31,9 @@ private:
   constexpr static uint32_t kDSIDPos = 8;
   constexpr static uint32_t kIDLenPos = 9;
   // It stores the address of the object (which is stored in the local region).
+  // 保存了上面header的头地址
+  // 我们可以通过addr_加上偏移量取地址，取到header中的一个个元素
+  // 保存一个object头信息和数据信息的地址
   uint64_t addr_;
 
 public:
@@ -46,9 +50,12 @@ public:
 
   Object();
   // Create a reference to the object at address addr.
+  // 传入的addr即为object的头地址，该构造函数只有一个addr的赋值操作，没有申请空间
   Object(uint64_t addr);
   // Initialize the object at address addr. Field ptr_addr is written by
   // far-mem pointer.
+  // 用传入的各个信息赋值已经保存在addr位置的object
+  // addr处的object需要提前申请空间，这里依旧不包含申请空间的操作
   Object(uint64_t addr, uint8_t ds_id, uint16_t data_len, uint8_t id_len,
          const uint8_t *id);
   void init(uint8_t ds_id, uint16_t data_len, uint8_t id_len,
