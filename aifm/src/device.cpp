@@ -61,8 +61,10 @@ TCPDevice::TCPDevice(netaddr raddr, uint32_t num_connections,
     : FarMemDevice(far_mem_size, kPrefetchWinSize),
       shared_pool_(num_connections) {
   // Initialize the master connection.
+  // 建立主连接，用于init和shutdown
   netaddr laddr = {.ip = MAKE_IP_ADDR(0, 0, 0, 0), .port = 0};
   BUG_ON(tcp_dial(laddr, raddr, &remote_master_) != 0);
+  // 发送init请求，将远端机器需要申请的内存大小附在包中
   char req[kOpcodeSize + sizeof(far_mem_size)];
   __builtin_memcpy(req, &kOpInit, kOpcodeSize);
   __builtin_memcpy(req + kOpcodeSize, &far_mem_size, sizeof(far_mem_size));
@@ -71,6 +73,7 @@ TCPDevice::TCPDevice(netaddr raddr, uint32_t num_connections,
   helpers::tcp_read_until(remote_master_, &ack, sizeof(ack));
 
   // Initialize slave connections.
+  // 建立请求连接，加入连接池，后续发送请求需要从该池中取连接进行发送
   tcpconn_t *remote_slave;
   for (uint32_t i = 0; i < num_connections; i++) {
     BUG_ON(tcp_dial(laddr, raddr, &remote_slave) != 0);
@@ -161,10 +164,12 @@ void TCPDevice::_read_object(tcpconn_t *remote_slave, uint8_t ds_id,
   memcpy(&req[kOpcodeSize + Object::kDSIDSize + Object::kIDLenSize], obj_id,
          obj_id_len);
 
+  // 发送tcp请求
   helpers::tcp_write_until(remote_slave, req,
                            kOpcodeSize + Object::kDSIDSize +
                                Object::kIDLenSize + obj_id_len);
 
+  // 接收读取的对象数据
   helpers::tcp_read_until(remote_slave, data_len, sizeof(*data_len));
   if (*data_len) {
     helpers::tcp_read_until(remote_slave, data_buf, *data_len);

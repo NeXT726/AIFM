@@ -29,6 +29,7 @@ namespace far_memory {
 template <typename T> class DataFrameVector;
 
 // A GCTask is an interval of (to be GCed) local region.
+// GCTask 是一段本地Region的区间
 using GCTask = std::pair<uint64_t, uint64_t>;
 
 class GCParallelizer : public Parallelizer<GCTask> {
@@ -62,7 +63,9 @@ private:
   constexpr static double kFreeCacheHighThresh = 0.22;
   constexpr static uint8_t kGCSlaveThreadTaskQueueDepth = 8;
   constexpr static uint32_t kMaxNumRegionsPerGCRound = 128;
+  // 一次GC最大的回收率
   constexpr static double kMaxRatioRegionsPerGCRound = 0.1;
+  // 一次GC最小的回收率
   constexpr static double kMinRatioRegionsPerGCRound = 0.03;
 
   class RegionManager {
@@ -95,12 +98,17 @@ private:
 
   std::atomic<uint32_t> pending_gcs_{0};
   bool gc_master_spawned_;
+  // 与远端内存结点通信
   std::unique_ptr<FarMemDevice> device_ptr_;
+  // Con Condition 信号量
   rt::CondVar mutator_cache_condvar_;
   rt::CondVar mutator_far_mem_condvar_;
   rt::Spin gc_lock_;
+  // 用于标记eviction的并行器
   GCParallelMarker parallel_marker_;
+  // 用于swap out的并行器
   GCParallelWriteBacker parallel_write_backer_;
+  // 一次GC - Eviction的Region列表
   std::vector<Region> from_regions_{kMaxNumRegionsPerGCRound};
   int ksched_fd_;
   std::queue<uint8_t> available_ds_ids_;
@@ -126,7 +134,9 @@ private:
   void push_cache_free_region(Region &region);
   void swap_in(bool nt, GenericFarMemPtr *ptr);
   void swap_out(GenericFarMemPtr *ptr, Object obj);
+  // 执行GC的主线程程序 - 只能有一个
   void launch_gc_master();
+  // 执行一次GC：选取一定数量（由内存使用率决定）的Region进行Eviction
   void gc_cache();
   void gc_far_mem();
   uint64_t allocate_local_object(bool nt, uint16_t object_size);

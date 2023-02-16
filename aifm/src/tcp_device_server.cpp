@@ -22,6 +22,8 @@ extern "C" {
 using namespace far_memory;
 
 std::vector<rt::Thread> slave_threads;
+// 服务器端申请的用于保存对象的内存指针
+// q：但好像没有用，因为服务端会在接收到construct申请的时候为每个ds进行malloc
 std::unique_ptr<uint8_t> far_mem;
 
 std::atomic<bool> has_shutdown{true};
@@ -32,6 +34,7 @@ Server server;
 //     |OpCode = Init (1B)|Far Mem Size (8B)|
 // Response:
 //     |Ack (1B)|
+// 处理主线程的Init请求
 void process_init(tcpconn_t *c) {
   uint64_t *far_mem_size;
   uint8_t req[sizeof(decltype(*far_mem_size))];
@@ -279,9 +282,11 @@ void do_work(uint16_t port) {
   tcpconn_t *c;
   while (tcp_accept(q, &c) == 0) {
     if (has_shutdown) {
+      // 启动处理init和shutdown的主线程
       master_thread = rt::Thread([c]() { master_fn(c); });
       has_shutdown = false;
     } else {
+      // 启动处理请求的连接线程，加入vector中保存
       slave_threads.emplace_back(rt::Thread([c]() { slave_fn(c); }));
     }
   }
@@ -295,6 +300,7 @@ void my_main(void *arg) {
   do_work(port);
 }
 
+// 第一个参数为 @cfgpath: the path to the configuration file
 int main(int _argc, char *argv[]) {
   int ret;
 

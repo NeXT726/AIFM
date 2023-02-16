@@ -24,9 +24,12 @@ public:
   NOT_COPYABLE(Parallelizer);
   NOT_MOVEABLE(Parallelizer);
 
+  // @num_slaves：多少个线程 - 就有多少个队列 task_queue
+  // @task_queues_depth：每个队列的深度
   Parallelizer(uint32_t num_slaves, uint32_t task_queues_depth);
   virtual void master_fn() = 0;
   virtual void slave_fn(uint32_t tid) = 0;
+  // 将任务task加入任一队列，依次遍历所有队列找到一个加入成功的就可以返回了
   template <typename T> void master_enqueue_task(T &&task);
   bool slave_dequeue_task(uint32_t tid, Task *task);
   bool slave_can_exit(uint32_t tid);

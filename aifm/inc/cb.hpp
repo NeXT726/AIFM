@@ -39,6 +39,7 @@ public:
   template <typename D> bool push_back(D &&d);
   template <typename D> std::optional<T> push_back_override(D &&d);
   template <typename D> bool pop_front(D *d);
+  // 从cb中偷走一半的元素加入到当前的Buffer中
   bool work_steal(CircularBuffer<T, Sync, Capacity> *cb);
   void clear();
   void for_each(const std::function<void(T)> &f);

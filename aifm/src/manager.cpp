@@ -37,9 +37,12 @@ ObjLocker FarMemManager::obj_locker_;
 FarMemManager *FarMemManagerFactory::ptr_;
 
 // The following GC status are shared with DerefScope.
+// 当前是否有活动的GC线程
+// 在启动GC线程的时候，通过CAS进行赋值
 bool gc_master_active;
 bool almost_empty;
 
+// 取出现有的所有Region中的所有可处理的区间加入到Parallelizer的某个任务队列中
 void GCParallelizer::master_fn() {
   for (auto &from_region : *from_regions_) {
     for (uint8_t j = 0; j < from_region.get_num_boundaries(); j++) {
@@ -401,6 +404,8 @@ void FarMemManager::pick_from_regions() {
                static_cast<uint32_t>(ratio_per_gc_round *
                                      cache_region_manager_.get_num_regions()));
   do {
+    // 只是从本地的used region链表中取队头元素Region加入到本次需要GC的列表中
+    // TODO：有大大的优化空间
     auto optional_region = pop_cache_used_region();
     if (unlikely(!optional_region)) {
       break;
@@ -421,6 +426,8 @@ GCParallelMarker::GCParallelMarker(uint32_t num_slaves,
                                    std::vector<Region> *from_regions)
     : GCParallelizer(num_slaves, task_queues_depth, from_regions) {}
 
+// 遍历当前task_queues_[tid]中的所有任务（Region的区间）
+// 将任务中Region区间内的所有非Free的Object的RemMemPtr都标记为Evacuation
 void GCParallelMarker::slave_fn(uint32_t tid) {
   preempt_disable();
   start_gc_us[get_core_num()].c = microtime();
@@ -430,6 +437,7 @@ void GCParallelMarker::slave_fn(uint32_t tid) {
     if (slave_dequeue_task(tid, &task)) {
       auto [left, right] = task;
       auto cur = left;
+      // 当current到right之间的距离 > kHeaderSize，说明当前区间内还有对象
       while (cur + Object::kHeaderSize < right) {
         auto obj = Object(cur);
         if (!obj.is_freed()) {
@@ -489,6 +497,8 @@ GCParallelWriteBacker::GCParallelWriteBacker(uint32_t num_slaves,
                                              std::vector<Region> *from_regions)
     : GCParallelizer(num_slaves, task_queues_depth, from_regions) {}
 
+// 遍历当前task_queues_[tid]中的所有任务（Region的区间）
+// 将任务中Region区间内的所有非Free的Object都直接Swap Out
 void GCParallelWriteBacker::slave_fn(uint32_t tid) {
   preempt_disable();
   start_gc_us[get_core_num()].c = microtime();
@@ -519,15 +529,18 @@ void GCParallelWriteBacker::slave_fn(uint32_t tid) {
   }
 }
 
+// 将本次GC的Region的对象swap out
 void FarMemManager::write_back_regions() {
   Status slaves_status[num_gc_threads_];
   for (uint32_t i = 0; i < num_gc_threads_; i++) {
     slaves_status[i] = GC;
   }
+  // 创建parallel_write_backer_线程
   parallel_write_backer_.spawn(slaves_status);
 #ifndef STW_GC
   start_prioritizing(GC);
 #endif
+  // 生成eviction Region区间的Task，并执行eviction
   parallel_write_backer_.execute();
 }
 
@@ -561,13 +574,17 @@ void FarMemManager::gc_cache() {
     assert(preempt_enabled());
   });
 #endif
+  // 各个 CPU Core GC开始的us
   start_gc_us[get_core_num()].c = microtime();
 
+  // 如果free的内存比较多，就直接return
+  // 也就是如果free的内存不够了，才执行下面的流程进行换出
   if (unlikely(!is_free_cache_low())) {
     return;
   }
 
   // No more than 1 active gc master thread.
+  // 当前是否有活动的GC线程
   if (!__sync_bool_compare_and_swap(&gc_master_active, false, true)) {
     return;
   }
@@ -577,6 +594,7 @@ void FarMemManager::gc_cache() {
              cache_region_manager_.get_free_region_ratio());
 #endif
 
+  // 要一直换出到内存空余空间大于kFreeCacheHighThresh = 0.22
   while (!is_free_cache_high()) {
     // Phase 1. Pick regions to be GCed.
 #ifdef GC_LOG
@@ -594,6 +612,7 @@ void FarMemManager::gc_cache() {
     ts[1] = std::chrono::steady_clock::now();
 #endif
 #ifndef STW_GC
+    // 标记from_regions_本次GC的所有Region的所有对象的Pointer都为Eviction
     mark_fm_ptrs(&preempt_guard);
 #endif
 

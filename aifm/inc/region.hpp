@@ -36,12 +36,20 @@ public:
 private:
   uint32_t first_free_byte_idx_ = kObjectPos;
   // 当该region在本地时，赋值buf_ptr为块的首地址
-  // q：当该region不在本地时，怎么处理？
+  // q&a：当该region不在本地时，怎么处理？
+  // a：当region不在本地的时候，buf_ptr_赋值为nullptr
+  // a：本地传递指针，远端则只传递偏移量
   uint8_t *buf_ptr_ = nullptr;
   int32_t region_idx_ = kInvalidIdx;
+
+  // 最多就 kGCParallelism = 2 项
+  // 当update_boundaries时更新该数组
   uint8_t num_boundaries_ = 0;
   uint32_t gc_boundaries_[kGCParallelism];
-
+  // update_boundaries 函数在每次 allocate_object的时候调用
+  // 当Region写到最后一个元素的时候才将force置为true，强行把Region最后的偏移写进去
+  // 其他情况都以kGCParallelism分割整个Region
+  // 但因为不能把一个Object从中间斩断，所以不能粗暴的做除法，而要用update函数的方式
   void update_boundaries(bool force);
 
 public:
@@ -62,8 +70,12 @@ public:
   uint32_t get_ref_cnt() const;
   void clear_ref_cnt();
   bool is_gcable() const;
+
   uint8_t get_num_boundaries() const;
+  // 找到第 idx - 1 次到第 idx 次 update 成功的区间
+  // 也就是第 idx + 1 个GC线程需要处理的区间
   std::pair<uint64_t, uint64_t> get_boundary(uint8_t idx) const;
+  
   void atomic_inc_ref_cnt(int32_t delta);
   static bool is_nt(uint64_t buf_ptr_addr);
   static void atomic_inc_ref_cnt(uint64_t object_addr, int32_t delta);

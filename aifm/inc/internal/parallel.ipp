@@ -61,12 +61,17 @@ FORCE_INLINE bool Parallelizer<Task>::slave_can_exit(uint32_t tid) {
       if (i == tid) {
         continue;
       }
+      // 如果偷到了的话，直接goto done
+      // 否则继续进行遍历，换一个队列偷元素
       if (task_queues_[tid]->work_steal(task_queues_[i].get())) {
         goto done;
       }
     }
   }
 done:
+  // 只有在master_done_：所有Region的可回收区间加入到队列之后
+  // && 当前队列没有元素 && 其他队列元素 <= 1，偷不到时
+  // 才会返回True，表示当前tid线程确实没有什么Task可以做了
   return master_done_ && task_queues_[tid]->size() == 0;
 }
 

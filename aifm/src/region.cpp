@@ -43,6 +43,7 @@ std::optional<uint64_t> Region::allocate_object(uint16_t object_size) {
       Region::atomic_inc_ref_cnt(1);
       object_addr = reinterpret_cast<uint64_t>(buf_ptr_) + start;
     } else {
+      // 直接使用local region里的first_free_byte_idx_
       object_addr = region_idx_ * kSize + start;
     }
     return object_addr;

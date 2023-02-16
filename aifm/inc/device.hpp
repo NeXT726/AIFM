@@ -62,7 +62,10 @@ class TCPDevice : public FarMemDevice {
 private:
   constexpr static uint32_t kPrefetchWinSize = 1 << 20;
 
+  // 与远端机器维护的连接（用于init和shutdown！）
   tcpconn_t *remote_master_;
+  // 客户端会与服务端建立num_connections个连接用于请求的处理，并将这些链接加入下面的池
+  // 用户每次发送请求都需要从池中取一个连接，然后通过这个连接发送消息
   SharedPool<tcpconn_t *> shared_pool_;
 
   void _read_object(tcpconn_t *remote_slave, uint8_t ds_id, uint8_t obj_id_len,
@@ -107,6 +110,9 @@ public:
   constexpr static uint8_t kOpDeconstruct = 6;
   constexpr static uint8_t kOpCompute = 7;
 
+  // @raddr：远端机器的地址
+  // @num_connections：维持的用于请求的连接数量
+  // @far_mem_size：
   TCPDevice(netaddr raddr, uint32_t num_connections, uint64_t far_mem_size);
   ~TCPDevice();
   void read_object(uint8_t ds_id, uint8_t obj_id_len, const uint8_t *obj_id,
