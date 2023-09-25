@@ -14,12 +14,12 @@ cd ..
 
 # Shenango Core
 make clean
-make -j$(nproc) || { echo 'Failed to build Shenango core.'; exit 1; }
+make -j$(nproc) -no-pie || { echo 'Failed to build Shenango core.'; exit 1; }
 
 # Bindings
 cd bindings/cc
 make clean
-make -j$(nproc) || { echo 'Failed to build Shenango bindings.'; exit 1; }
+make -j$(nproc) -no-pie || { echo 'Failed to build Shenango bindings.'; exit 1; }
 cd ../..
 
 # Setup

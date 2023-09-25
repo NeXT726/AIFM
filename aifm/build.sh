@@ -2,7 +2,7 @@
 
 # AIFM Core.
 make clean
-make -j$(nproc) || { echo 'Failed to build AIFM Core.'; exit 1; }
+make -j$(nproc) -no-pie || { echo 'Failed to build AIFM Core.'; exit 1; }
 
 # Far-Mem Snappy.
 cd snappy
